@@ -61,9 +61,8 @@ Os guias ficam na pasta [`docs/`](docs/):
 
 | Guia | Para que serve |
 |---|---|
-| [checklist-da-prova.md](docs/checklist-da-prova.md) | sequencia curta de comandos para o dia da prova |
-| [guia-da-prova.md](docs/guia-da-prova.md) | ordem pratica para implementar a API a partir do enunciado |
-| [testes.md](docs/testes.md) | explicacao e modelos de Mockito e MockMvc |
+| [roteiro-da-prova.md](docs/roteiro-da-prova.md) | **comece aqui**: sequencia completa da prova, com modelos de codigo, testes e todos os comandos |
+| [testes.md](docs/testes.md) | explicacao de Mockito, MockMvc, Testcontainers e cobertura |
 | [github-e-deploy.md](docs/github-e-deploy.md) | secrets, Docker Hub, VM e deploy automatico |
 
 ## Estrutura do projeto

@@ -1,5 +1,9 @@
 # Como construir os testes da prova
 
+> Modelos completos, com imports, prontos para adaptar: veja a Parte 4 e a
+> Parte 5 do [roteiro-da-prova.md](roteiro-da-prova.md). Este arquivo explica
+> o porque de cada parte.
+
 O projeto `curso` mostra dois niveis de teste que provavelmente serao pedidos:
 
 1. **teste unitario do service com Mockito**: rapido, sem Spring e sem banco;
@@ -306,7 +310,8 @@ cobertura ajuda a encontrar buracos, mas as assercoes e os cenarios corretos e
 que provam que o sistema funciona.
 
 O comando `verify` tambem executa uma regra automatica: cada classe dentro do
-pacote `service` precisa ter 100% das linhas cobertas. Se faltar uma linha, o
+pacote `service` precisa ter 100% das linhas **e 100% dos ramos (branches)**
+cobertos. Se faltar uma linha, o
 build e o GitHub Actions falham e mostram a classe abaixo de 100%.
 
 

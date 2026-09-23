@@ -73,6 +73,7 @@ repository/   interfaces JpaRepository
 service/      regras de negócio  ← cobertura de 100% exigida aqui
 controller/   rotas HTTP
 exception/    exceções com status HTTP
+observer/     observers (só se o enunciado pedir; ver Parte 5.5)
 ```
 
 > A regra de cobertura vale para **todas** as classes do pacote `service`.
@@ -602,6 +603,167 @@ class ProdutoControllerTests {
 ```
 
 Mais explicações sobre Mockito e MockMvc: [testes.md](testes.md).
+
+---
+
+## Parte 5.5: padrão Observer (se o enunciado pedir)
+
+**Ideia:** quando algo acontece no service (ex: produto criado), ele **avisa**
+uma lista de interessados (observers) sem saber o que cada um faz. Cada
+observer reage do seu jeito: registra log, atualiza estoque, grava histórico...
+
+```text
+ProdutoService ──notifica──► [ LogProdutoObserver, HistoricoProdutoObserver, ... ]
+```
+
+O Spring monta a lista sozinho: toda classe `@Component` que implementa a
+interface entra automaticamente na `List<ProdutoObserver>` do service.
+
+Pacote novo: `observer/` (fora de `service/`, então não entra na regra de 100%).
+
+### 5.5.1 Interface (`observer/ProdutoObserver.java`)
+
+```java
+package insper.edu.br.provaintermediaria.observer;
+
+import insper.edu.br.provaintermediaria.model.Produto;
+
+public interface ProdutoObserver {
+
+    void notificar(Produto produto);
+}
+```
+
+Se o enunciado tiver vários eventos (criado, atualizado, excluído), crie um
+método para cada um na interface, ou passe o tipo do evento como parâmetro:
+`void notificar(String evento, Produto produto);`
+
+### 5.5.2 Observer concreto (`observer/LogProdutoObserver.java`)
+
+```java
+package insper.edu.br.provaintermediaria.observer;
+
+import org.springframework.stereotype.Component;
+
+import insper.edu.br.provaintermediaria.model.Produto;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+@Component
+public class LogProdutoObserver implements ProdutoObserver {
+
+    @Override
+    public void notificar(Produto produto) {
+        log.info("Produto criado: id={}, nome={}", produto.getId(), produto.getNome());
+    }
+}
+```
+
+Se o observer precisar mexer no banco (ex: gravar um histórico), é só injetar
+o repository nele com `@RequiredArgsConstructor` + `private final ...Repository`.
+
+### 5.5.3 Service notificando (`service/ProdutoService.java`)
+
+Acrescente a lista e chame os observers **depois** de salvar:
+
+```java
+@Service
+@RequiredArgsConstructor
+public class ProdutoService {
+
+    private final ProdutoRepository produtoRepository;
+    private final List<ProdutoObserver> observers;   // Spring injeta todos os @Component
+
+    public Produto criar(Produto produto) {
+        Produto salvo = produtoRepository.save(produto);
+        for (ProdutoObserver observer : observers) {
+            observer.notificar(salvo);
+        }
+        return salvo;
+    }
+
+    // ... resto igual
+}
+```
+
+Import novo: `insper.edu.br.provaintermediaria.observer.ProdutoObserver`.
+
+Tenha **pelo menos um** `@Component` implementando a interface, senão o Spring
+pode não conseguir montar o service.
+
+### 5.5.4 Testes do service com observer
+
+O `@InjectMocks` não sabe montar uma `List` de mocks. Então, nos testes, crie o
+service **na mão** num `@BeforeEach`, trocando o `@InjectMocks`:
+
+```java
+@ExtendWith(MockitoExtension.class)
+class ProdutoServiceTests {
+
+    @Mock
+    private ProdutoRepository produtoRepository;
+
+    @Mock
+    private ProdutoObserver observer;
+
+    private ProdutoService produtoService;
+
+    @BeforeEach
+    void setUp() {
+        produtoService = new ProdutoService(produtoRepository, List.of(observer));
+    }
+
+    @Test
+    void deveNotificarObserversAoCriar() {
+        Produto entrada = produto(null, "Caneta", 2.5);
+        Produto salvo = produto(1L, "Caneta", 2.5);
+        Mockito.when(produtoRepository.save(entrada)).thenReturn(salvo);
+
+        produtoService.criar(entrada);
+
+        Mockito.verify(observer).notificar(salvo);   // o observer recebeu o produto salvo
+    }
+
+    @Test
+    void naoDeveNotificarQuandoAtualizacaoFalha() {
+        Mockito.when(produtoRepository.findById(99L)).thenReturn(Optional.empty());
+
+        Assertions.assertThrows(RecursoNaoEncontradoException.class,
+                () -> produtoService.atualizar(99L, produto(null, "Lapis", 1.0)));
+        Mockito.verifyNoInteractions(observer);      // em caso de erro, ninguém é avisado
+    }
+
+    // ... demais testes iguais aos da Parte 4
+}
+```
+
+Imports novos: `org.junit.jupiter.api.BeforeEach` e
+`insper.edu.br.provaintermediaria.observer.ProdutoObserver`
+(remova o `org.mockito.InjectMocks`).
+
+**Cobertura:** o `for` tem 2 ramos (entra no laço / sai do laço). Um teste com
+um observer na lista já cobre os dois.
+
+### 5.5.5 Teste do observer concreto (opcional)
+
+Não conta para a regra de 100%, mas é rápido:
+
+```java
+class LogProdutoObserverTests {
+
+    @Test
+    void deveNotificarSemErro() {
+        Produto p = new Produto();
+        p.setId(1L);
+        p.setNome("Caneta");
+
+        Assertions.assertDoesNotThrow(() -> new LogProdutoObserver().notificar(p));
+    }
+}
+```
+
+Se o observer grava no banco, teste com um repository mockado e
+`Mockito.verify(repository).save(...)`.
 
 ---
 
